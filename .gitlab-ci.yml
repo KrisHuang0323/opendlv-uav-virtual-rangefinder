@@ -1,18 +1,3 @@
-# Copyright (C) 2023 Ola Benderius
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
 image: docker
 
 variables:
@@ -30,7 +15,7 @@ before_script:
 
 build-amd64:
   tags:
-    - docker-build
+    - gitlab-org-docker
   stage: build
   script:
     - docker build .
@@ -39,10 +24,10 @@ build-amd64:
 
 release:
   tags:
-    - docker-build
+    - gitlab-org-docker
   stage: deploy
   script:
-    - docker run --privileged --rm multiarch/qemu-user-static --reset -p yes
+    - docker run --privileged --rm tonistiigi/binfmt --install all
     - docker buildx create --name multiplatformbuilder --use
     - docker buildx build --platform "$PLATFORMS" -t "$CI_REGISTRY_IMAGE":"$CI_COMMIT_TAG" --push .
   rules:
