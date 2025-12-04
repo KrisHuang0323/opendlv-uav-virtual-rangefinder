@@ -1,0 +1,65 @@
+name: Docker Build & Publish
+
+on:
+  push:
+    branches: [ "main" ]      # 對應 build-amd64
+    tags: [ "*.*.*" ]         # 對應 release
+
+env:
+  REGISTRY: ghcr.io
+  # ⚠️ 請務必修改這裡：改成您的「個人帳號/Repo名稱」(全小寫)
+  # 例如：krishuang0323/opendlv-uav-ad-hoc
+  IMAGE_NAME: krishuang0323/opendlv-uav-virtual-rangefinder
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    
+    # 必要的權限設定
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      # 1. 下載程式碼 (這份沒有 submodule，所以用預設即可)
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. 設定 QEMU (對應 tonistiigi/binfmt)
+      # 這是為了讓 GitHub Runner 可以編譯 ARM 架構
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      # 3. 設定 Docker Buildx (對應 docker buildx create)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 4. 登入 Registry
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 5. 自動產生 Tag (latest, 1.0.0 等)
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/') }}
+
+      # 6. 建置並推送
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          # 邏輯：Tag 才 Push，Branch 只 Build
+          push: ${{ startsWith(github.ref, 'refs/tags/') }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # 邏輯：Tag 跑全平台 (慢)，Branch 只跑 amd64 (快)
+          platforms: ${{ startsWith(github.ref, 'refs/tags/') && 'linux/amd64,linux/arm64,linux/arm/v7' || 'linux/amd64' }}
